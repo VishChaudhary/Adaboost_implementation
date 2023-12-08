@@ -67,8 +67,8 @@ def MLP(x_train, y_train):
     # print(f' input_shape[1]: {input_shape[1]}')
     y_train = np.array(y_train)
     model = tf.keras.Sequential([
-        tf.keras.layers.Dense(8, activation='relu', input_shape=(input_shape[1],)),
-        #tf.keras.layers.Dense(16, activation='relu'),
+        tf.keras.layers.Dense(32, activation='relu', input_shape=(input_shape[1],)),
+        tf.keras.layers.Dense(16, activation='relu'),
         tf.keras.layers.Dense(output_shape, activation='softmax')
     ])
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
