@@ -80,19 +80,19 @@ def train_test_split(data, split = 0.1):
 def MLP(x_train, y_train):
     x_train = np.array(x_train)
     input_shape = x_train.shape
-    output_shape = len(set(y_train)) + 1
+    output_shape = np.max(y_train) + 1
     y_train = np.array(y_train)
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(128, activation='relu', input_shape=(input_shape[1],)),
-        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dropout(0.1),
         tf.keras.layers.Dense(64, activation='relu'),
-        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dropout(0.1),
         tf.keras.layers.Dense(32, activation='relu'),
         tf.keras.layers.Dropout(0.1),
         tf.keras.layers.Dense(output_shape, activation='softmax')
     ])
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-    model.fit(x_train, y_train, epochs=10)
+    model.fit(x_train, y_train, epochs=15)
     accuracy = model.evaluate(x_train, y_train)[1]
     print(f'Accuracy: {accuracy}')
     predictions = [np.argmax(prob) for prob in model.predict(x_train,verbose=0)]
@@ -180,15 +180,15 @@ def update_weights(was_misclassified, error, weights, weighted_original_data, x_
 
 
 def main():
-    file = 'wine_binned.csv'
+    file = 'glass_binned.csv'
 
     num_classifiers = 4
     header, original_data = read_csv_without_libraries(file)
-
+    num_classes = np.max([val[-1] for val in original_data]) + 1
     train_data, x_test, y_test = train_test_split(original_data)
 
     ada_x_train = [val[:-1] for val in train_data]
-    ada_y_train = [ val[-1] for val in train_data]
+    ada_y_train = [val[-1] for val in train_data]
 
     # Add initial weight to data
     weighted_train_data = initial_weights(train_data)
@@ -227,9 +227,9 @@ def main():
     classifier_weights = [0]*num_classifiers
     length_test = len(x_test)
     predict_array = []
-
+    #num_classes = np.max(y_test) + 1
     for j in range(0, length_test):
-        classifier_prediction = [0] * num_classifiers
+        classifier_prediction = [0] * num_classes
         for i in range(0, num_classifiers):
             classifier_weights[i] = np.log((1-classifier_errors[i])/(classifier_errors[i]))
             if i == 0:
