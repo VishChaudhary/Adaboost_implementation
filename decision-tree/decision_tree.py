@@ -15,7 +15,7 @@ class Node:
         # leaf node
         self.value = value
 
-class DecisionTreeClassifier:
+class DecisionTreeClassifier_2:
 
     def __init__(self, min_samples_split=2, max_depth=float('inf'), criterion='gini'):
         # will be set as the tree when fit function is run
