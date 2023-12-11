@@ -2,6 +2,12 @@ import numpy as np
 import tensorflow as tf
 from sklearn import svm
 from sklearn.tree import DecisionTreeClassifier
+from adaboost import AdaBoostClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import pandas as pd
+from decision_tree import DecisionTreeClassifier_2
+
 
 # Read in data
 def read_csv_without_libraries(filename, delimiter=","):
@@ -113,6 +119,29 @@ def decision_tree(x_train,y_train,criterion = 'gini',max_depth=None):
     return predictions,model
 
 
+def our_decision_tree(x_train, y_train, max_depth = 3):
+    model = DecisionTreeClassifier_2()
+    x_train = pd.DataFrame(x_train)
+    y_train = pd.DataFrame(y_train)
+    model.fit(x_train, y_train)
+    y_pred = model.predict(x_train)
+    prediction = [val[0] for val in y_pred]
+    print(f'Our Decision Tree Accuracy: {accuracy_score(y_pred, y_train)}')
+    return prediction, model
+
+
+def sklearn_adaboost(x_train,y_train, n_estimators=100, min_samples_split=2):
+    x_train = pd.DataFrame(x_train)
+    y_train = pd.Series(y_train)
+
+    model = AdaBoostClassifier(n_estimators, min_samples_split)
+    model.fit(x_train, y_train)
+    prediction = model.predict(x_train)
+
+    print(f'Sklearn Adaboost Accuracy: {accuracy_score(prediction, y_train):}')
+    return prediction, model
+
+
 def was_missclass(predictions, y_train, x_train, weighted_original_data, weights):
     is_misclassified = [False] * len(predictions)
     error = 0.0
@@ -153,10 +182,13 @@ def update_weights(was_misclassified, error, weights, weighted_original_data, x_
 def main():
     file = 'wine_binned.csv'
 
-    num_classifiers = 3
+    num_classifiers = 4
     header, original_data = read_csv_without_libraries(file)
 
     train_data, x_test, y_test = train_test_split(original_data)
+
+    ada_x_train = [val[:-1] for val in train_data]
+    ada_y_train = [ val[-1] for val in train_data]
 
     # Add initial weight to data
     weighted_train_data = initial_weights(train_data)
@@ -173,14 +205,21 @@ def main():
         if i == 1:
             predictions, svm_model = svm_classifier(x_train, y_train)
             classifier_models[i] = svm_model
+
         if i == 2:
             predictions, decision_tree_model = decision_tree(x_train,y_train)
             classifier_models[i] = decision_tree_model
 
+        if i == 3:
+            predictions, our_decision_tree_model = our_decision_tree(x_train,y_train)
+            classifier_models[i] = our_decision_tree_model
+
         was_misclassified, error = was_missclass(predictions, y_train, weights=weights, x_train=x_train,
                                                  weighted_original_data=weighted_train_data)
+
         if error == 0:
             error = 1e-6
+
         classifier_errors[i] = error
         weights, weighted_train_data = update_weights(was_misclassified, error, weights, weighted_train_data,
                                                          x_train)
@@ -190,14 +229,17 @@ def main():
     predict_array = []
 
     for j in range(0, length_test):
-        classifier_prediction = [0] * (num_classifiers + 1)
-        for i in range(0,num_classifiers):
+        classifier_prediction = [0] * num_classifiers
+        for i in range(0, num_classifiers):
             classifier_weights[i] = np.log((1-classifier_errors[i])/(classifier_errors[i]))
             if i == 0:
                 prediction = np.argmax(classifier_models[i].predict(np.array(x_test[j]).reshape(1,-1),verbose=0))
 
+            elif i == 3:
+                prediction = classifier_models[i].predict(np.array(x_test[j]).reshape(1, -1))[0][0]
+
             else:
-                prediction = int(classifier_models[i].predict(np.array(x_test[j]).reshape(1,-1))[0])
+                prediction = classifier_models[i].predict(np.array(x_test[j]).reshape(1,-1))[0]
 
             classifier_prediction[prediction] += classifier_weights[i]
 
@@ -216,6 +258,17 @@ def main():
 
     print(f'{incorrect_sum} out of {length_test} values misclassified')
 
+    print(f'Sklearn Adaboost implementation:\n')
+    _, ada_model = sklearn_adaboost(ada_x_train,ada_y_train)
+    ada_prediction = ada_model.predict(pd.DataFrame(x_test))
+    print(f'Predicted Class: {ada_prediction}')
+    incorrect_sum = 0
+
+    for i in range(0, length_test):
+        if ada_prediction[i] != y_test[i]:
+            incorrect_sum += 1
+
+    print(f'{incorrect_sum} out of {length_test} values misclassified')
 
 if __name__ == "__main__":
     main()
