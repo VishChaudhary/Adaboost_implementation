@@ -6,8 +6,45 @@ from adaboost import AdaBoostClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import pandas as pd
+import time, resource
 from decision_tree import DecisionTreeClassifier_2
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
 
+def accuracy_multi_class(confusion_matrix):
+    # Calculate accuracy for multi-class classification
+    correct = sum(confusion_matrix[i][i] for i in range(len(confusion_matrix)))
+    total = sum(sum(row) for row in confusion_matrix)
+    return correct / total if total != 0 else 0
+
+def precision_multi_class(confusion_matrix):
+    # Calculate precision for each class and return a list of precisions
+    precisions = []
+    for i in range(len(confusion_matrix)):
+        true_positive = confusion_matrix[i][i]
+        false_positive = sum(confusion_matrix[row][i] for row in range(len(confusion_matrix))) - true_positive
+        precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) != 0 else 0
+        precisions.append(precision)
+    return precisions
+
+def recall_multi_class(confusion_matrix):
+    # Calculate recall for each class and return a list of recalls
+    recalls = []
+    for i in range(len(confusion_matrix)):
+        true_positive = confusion_matrix[i][i]
+        false_negative = sum(confusion_matrix[i]) - true_positive
+        recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) != 0 else 0
+        recalls.append(recall)
+    return recalls
+
+def f1_score_multi_class(precisions, recalls):
+    # Calculate F1-score for each class and return a list of F1-scores
+    f1_scores = []
+    for i in range(len(precisions)):
+        precision = precisions[i]
+        recall = recalls[i]
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) != 0 else 0
+        f1_scores.append(f1_score)
+    return f1_scores
 
 # Read in data
 def read_csv_without_libraries(filename, delimiter=","):
@@ -94,7 +131,7 @@ def MLP(x_train, y_train):
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
     model.fit(x_train, y_train, epochs=15)
     accuracy = model.evaluate(x_train, y_train)[1]
-    print(f'Accuracy: {accuracy}')
+    print(f'Neural Network Accuracy: {accuracy}')
     predictions = [np.argmax(prob) for prob in model.predict(x_train,verbose=0)]
     return predictions, model
 
@@ -130,7 +167,7 @@ def our_decision_tree(x_train, y_train, max_depth = 3):
     return prediction, model
 
 
-def sklearn_adaboost(x_train,y_train, n_estimators=100, min_samples_split=2):
+def custom_adaboost(x_train,y_train, n_estimators=100, min_samples_split=2):
     x_train = pd.DataFrame(x_train)
     y_train = pd.Series(y_train)
 
@@ -138,7 +175,7 @@ def sklearn_adaboost(x_train,y_train, n_estimators=100, min_samples_split=2):
     model.fit(x_train, y_train)
     prediction = model.predict(x_train)
 
-    print(f'Sklearn Adaboost Accuracy: {accuracy_score(prediction, y_train):}')
+    # print(f'Custom Stumped Adaboost Accuracy: {accuracy_score(prediction, y_train):}')
     return prediction, model
 
 
@@ -180,7 +217,8 @@ def update_weights(was_misclassified, error, weights, weighted_original_data, x_
 
 
 def main():
-    file = 'glass_binned.csv'
+    time_start = time.perf_counter()
+    file = 'final_datasets/credit_card_binned.csv'
 
     num_classifiers = 4
     header, original_data = read_csv_without_libraries(file)
@@ -243,13 +281,13 @@ def main():
 
             classifier_prediction[prediction] += classifier_weights[i]
 
-        print(f'The predicted class is: {np.argmax(classifier_prediction)} and the actual class is: {y_test[j]}')
+        # print(f'The predicted class is: {np.argmax(classifier_prediction)} and the actual class is: {y_test[j]}')
         predict_array.append(np.argmax(classifier_prediction))
 
     predict_array = np.array(predict_array)
     y_test = np.array(y_test)
-    print(predict_array)
-    print(y_test)
+    # print(predict_array)
+    # print(y_test)
     incorrect_sum = 0
 
     for i in range(0, length_test):
@@ -258,10 +296,34 @@ def main():
 
     print(f'{incorrect_sum} out of {length_test} values misclassified')
 
-    print(f'Sklearn Adaboost implementation:\n')
-    _, ada_model = sklearn_adaboost(ada_x_train,ada_y_train)
+    conf_matrix = confusion_matrix(y_test, predict_array)
+
+    # Extract true positives, true negatives, false positives, and false negatives
+
+
+    # Calculate metrics
+    accuracy = accuracy_multi_class(conf_matrix)
+    precision = precision_multi_class(conf_matrix)
+    recall = recall_multi_class(conf_matrix)
+    f1 = f1_score_multi_class(precision, recall)
+
+    # Print the results
+    print("Confusion Matrix:")
+    print(conf_matrix)
+    print("\nMetrics:")
+    print(f"Accuracy: {accuracy:.2f}")
+    print(f"Precisions: {sum(precision)/len(precision):.2f}")
+    print(f"Recalls: {sum(recall)/len(recall):.2f}")
+    print(f"F1 Scores: {sum(f1)/len(f1):.2f}")
+
+    time_elapsed = (time.perf_counter() - time_start)
+    memMb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
+    print(f"Adaboost without stumping took %5.4f secs %5.4f MByte" % (time_elapsed, memMb))
+    print(f'Stumped Adaboost implementation:\n')
+    time_start = time.perf_counter()
+    _, ada_model = custom_adaboost(ada_x_train,ada_y_train)
     ada_prediction = ada_model.predict(pd.DataFrame(x_test))
-    print(f'Predicted Class: {ada_prediction}')
+    # print(f'Predicted Class: {ada_prediction}')
     incorrect_sum = 0
 
     for i in range(0, length_test):
@@ -269,6 +331,29 @@ def main():
             incorrect_sum += 1
 
     print(f'{incorrect_sum} out of {length_test} values misclassified')
+
+    conf_matrix = confusion_matrix(y_test, ada_prediction)
+
+    # Extract true positives, true negatives, false positives, and false negatives
+    accuracy = accuracy_multi_class(conf_matrix)
+    precision = precision_multi_class(conf_matrix)
+    recall = recall_multi_class(conf_matrix)
+    f1 = f1_score_multi_class(precision, recall)
+
+    # Print the results
+    print("Confusion Matrix:")
+    print(conf_matrix)
+    print("\nMetrics:")
+    print(f"Accuracy: {accuracy:.2f}")
+    print(f"Precisions: {sum(precision)/len(precision):.2f}")
+    print(f"Recalls: {sum(recall)/len(recall):.2f}")
+    print(f"F1 Scores: {sum(f1)/len(f1):.2f}")
+    time_elapsed = (time.perf_counter() - time_start)
+    memMb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0 / 1024.0
+    print(f"Adaboost with stumping took %5.4f secs %5.4f MByte" % (time_elapsed, memMb))
+
+
+    
 
 if __name__ == "__main__":
     main()
